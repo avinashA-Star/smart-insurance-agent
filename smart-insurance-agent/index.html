@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Insurance Agent</title>
+<style>
+:root{--bg:#f3f6f4;--surface:#fff;--ink:#14302b;--muted:#5b716c;--line:#d5dfdb;--accent:#0f6b5c;--accent-ink:#fff;--bot:#e4eeea;--user:#14302b;--user-ink:#fff;--warn:#b4531a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1a18;--surface:#152623;--ink:#e6f0ed;--muted:#97aea8;--line:#264039;--accent:#4cc3aa;--accent-ink:#06201a;--bot:#1b302b;--user:#4cc3aa;--user-ink:#06201a;--warn:#e89860;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1a18;--surface:#152623;--ink:#e6f0ed;--muted:#97aea8;--line:#264039;--accent:#4cc3aa;--accent-ink:#06201a;--bot:#1b302b;--user:#4cc3aa;--user-ink:#06201a;--warn:#e89860;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+.app{max-width:760px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:0 14px}
+header{padding:22px 2px 12px;border-bottom:1px solid var(--line)}
+h1{font:700 1.55rem/1.2 Georgia,"Times New Roman",serif;margin:0}
+header p{margin:4px 0 0;color:var(--muted);font-size:.92rem}
+#log{flex:1;padding:18px 0;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%;padding:10px 14px;border-radius:14px;white-space:pre-wrap}
+.bot{background:var(--bot);align-self:flex-start;border-bottom-left-radius:4px}
+.user{background:var(--user);color:var(--user-ink);align-self:flex-end;border-bottom-right-radius:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start}
+.chips button,.row button{font:inherit;border:1.5px solid var(--accent);background:transparent;color:var(--accent);padding:7px 14px;border-radius:999px;cursor:pointer}
+.chips button:hover,.row button:hover{background:var(--accent);color:var(--accent-ink)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;width:100%}
+.plan{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px}
+.plan.best{border:2px solid var(--accent)}
+.plan h3{margin:0 0 2px;font:700 1.05rem Georgia,serif}
+.price{font-size:1.5rem;font-weight:700;color:var(--accent)}
+.price small{font-size:.8rem;color:var(--muted);font-weight:400}
+.plan ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:.9rem}
+.tag{display:inline-block;font-size:.78rem;background:var(--accent);color:var(--accent-ink);border-radius:4px;padding:1px 7px;margin-bottom:6px}
+.risk{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent)}
+form{display:flex;gap:8px;padding:10px 0 16px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--bg)}
+input{flex:1;font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+form button{font:inherit;border:0;background:var(--accent);color:var(--accent-ink);padding:0 18px;border-radius:8px;cursor:pointer}
+.note{color:var(--muted);font-size:.8rem;text-align:center;padding-bottom:10px}
+@media (prefers-reduced-motion:no-preference){.msg{animation:in .2s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<h1>Smart Insurance Agent</h1>
+<p>Answer a few questions and get a plan matched to your situation.</p>
+</header>
+<div id="log" aria-live="polite"></div>
+<form id="f"><input id="in" placeholder="Type your answer or a question…" autocomplete="off" aria-label="Your message"><button>Send</button></form>
+<div class="note">Estimates are illustrative only, not an offer of cover.</div>
+</div>
+
+<script>
+// ---------- Config: edit rates and plans here ----------
+const CUR = "₹";
+const TYPES = {
+  health: { label: "Health", base: 6000,
+    plans: [
+      { name: "Essential", cover: "3 lakh", mult: 1,   perks: ["Hospital stays", "Pre/post care 30 days"] },
+      { name: "Plus",      cover: "10 lakh", mult: 1.7, perks: ["Everything in Essential", "Maternity & day-care", "No-claim bonus"] },
+      { name: "Complete",  cover: "25 lakh", mult: 2.6, perks: ["Everything in Plus", "Global emergency", "Annual health check"] } ] },
+  life: { label: "Life", base: 9000,
+    plans: [
+      { name: "Term Basic",  cover: "50 lakh", mult: 1,   perks: ["Death benefit", "Tax benefits"] },
+      { name: "Term Plus",   cover: "1 crore", mult: 1.8, perks: ["Everything in Basic", "Accidental death rider"] },
+      { name: "Term Secure", cover: "2 crore", mult: 3.2, perks: ["Everything in Plus", "Critical illness rider", "Waiver of premium"] } ] },
+  motor: { label: "Motor", base: 3500,
+    plans: [
+      { name: "Third-party", cover: "Liability only", mult: 0.6, perks: ["Legally required cover", "Injury to others"] },
+      { name: "Comprehensive", cover: "Own + third party", mult: 1, perks: ["Accident & theft", "Natural calamities"] },
+      { name: "Comprehensive+", cover: "Own + add-ons", mult: 1.4, perks: ["Zero depreciation", "Roadside assistance", "Engine protect"] } ] }
+};
+// Each question: id, text, quick-reply options (or null for number input), apply = risk points
+const FLOW = {
+  health: [
+    { id: "age", q: "How old is the person to be covered?", num: [1, 99], risk: v => v < 30 ? 5 : v < 45 ? 15 : v < 60 ? 30 : 45 },
+    { id: "fam", q: "Who needs cover?", opts: ["Just me", "Me + spouse", "Family with kids"], risk: v => ({ "Just me": 0, "Me + spouse": 10, "Family with kids": 20 })[v] },
+    { id: "cond", q: "Any existing conditions (diabetes, BP, etc.)?", opts: ["No", "Yes"], risk: v => v === "Yes" ? 25 : 0 },
+    { id: "smoke", q: "Do you smoke?", opts: ["No", "Yes"], risk: v => v === "Yes" ? 20 : 0 } ],
+  life: [
+    { id: "age", q: "What is your age?", num: [18, 70], risk: v => v < 30 ? 5 : v < 45 ? 15 : v < 60 ? 35 : 50 },
+    { id: "dep", q: "How many people depend on your income?", num: [0, 10], risk: v => 0 },
+    { id: "smoke", q: "Do you smoke?", opts: ["No", "Yes"], risk: v => v === "Yes" ? 30 : 0 },
+    { id: "job", q: "How would you describe your work?", opts: ["Desk job", "Mixed", "Physical / hazardous"], risk: v => ({ "Desk job": 0, "Mixed": 8, "Physical / hazardous": 20 })[v] } ],
+  motor: [
+    { id: "veh", q: "What are you insuring?", opts: ["Two-wheeler", "Car"], risk: v => v === "Car" ? 5 : 10 },
+    { id: "vage", q: "How old is the vehicle (years)?", num: [0, 25], risk: v => v < 3 ? 5 : v < 8 ? 15 : 25 },
+    { id: "age", q: "What is the driver's age?", num: [18, 80], risk: v => v < 25 ? 30 : v < 60 ? 10 : 20 },
+    { id: "claims", q: "Claims made in the last 3 years?", num: [0, 10], risk: v => Math.min(v * 12, 36) } ]
+};
+const FAQ = [
+  [/premium|price|cost/, "Your premium depends on age, health or vehicle details, and the cover you choose. Answer the questions and I will estimate it."],
+  [/claim/, "To claim: inform the insurer quickly, keep documents and bills, and submit the claim form. Cashless claims go through network hospitals or garages."],
+  [/waiting|exclusion/, "Waiting periods and exclusions vary by plan. Always read the policy wording for pre-existing conditions and add-ons."],
+  [/tax/, "Many life and health premiums may qualify for tax deductions. Confirm with a tax advisor for your case."],
+  [/human|agent|call/, "For a licensed advisor, share your estimate with them. I can only provide a guide."]
+];
+
+// ---------- State & UI ----------
+const log = document.getElementById("log"), inp = document.getElementById("in");
+let st = { type: null, step: 0, ans: {}, risk: 0 };
+
+function add(text, cls) { const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text; log.appendChild(d); scroll(); return d; }
+function scroll() { window.scrollTo({ top: document.body.scrollHeight }); }
+function chips(list, handler) {
+  const w = document.createElement("div"); w.className = "chips";
+  list.forEach(t => { const b = document.createElement("button"); b.type = "button"; b.textContent = t;
+    b.onclick = () => { w.remove(); handler(t); }; w.appendChild(b); });
+  log.appendChild(w); scroll();
+}
+function start() {
+  st = { type: null, step: 0, ans: {}, risk: 0 };
+  add("Hi, I am your insurance agent. What would you like to cover?", "bot");
+  chips(Object.keys(TYPES).map(k => TYPES[k].label), pickType);
+}
+function pickType(label) {
+  add(label, "user");
+  st.type = Object.keys(TYPES).find(k => TYPES[k].label === label);
+  st.step = 0; st.risk = 0; ask();
+}
+function ask() {
+  const q = FLOW[st.type][st.step];
+  if (!q) return quote();
+  add(q.q, "bot");
+  if (q.opts) chips(q.opts, v => answer(v, true));
+  else inp.placeholder = `Enter a number (${q.num[0]}–${q.num[1]})`;
+}
+function answer(raw, fromChip) {
+  const q = FLOW[st.type][st.step];
+  if (!fromChip) add(raw, "user"); else add(raw, "user");
+  let v = raw;
+  if (q.num) {
+    v = Number(raw);
+    if (!Number.isFinite(v) || v < q.num[0] || v > q.num[1]) {
+      add(`Please enter a number between ${q.num[0]} and ${q.num[1]}.`, "bot"); return;
+    }
+  }
+  st.ans[q.id] = v; st.risk += q.risk(v); st.step++; inp.placeholder = "Type your answer or a question…"; ask();
+}
+function quote() {
+  const T = TYPES[st.type], r = Math.min(100, st.risk);
+  const factor = 1 + r / 100;                         // risk loading
+  const level = r < 25 ? "Low" : r < 55 ? "Moderate" : "High";
+  const best = r < 25 ? 0 : r < 55 ? 1 : 2;
+  add(`Thanks. Here is what I found for your ${T.label.toLowerCase()} cover.`, "bot");
+  const rk = document.createElement("div"); rk.className = "risk";
+  rk.innerHTML = `<strong>Risk profile: ${level}</strong> (${r}/100)<div class="bar"><i style="width:${r}%"></i></div>`;
+  log.appendChild(rk);
+  const g = document.createElement("div"); g.className = "plans";
+  T.plans.forEach((p, i) => {
+    const yr = Math.round(T.base * p.mult * factor / 10) * 10;
+    const c = document.createElement("div"); c.className = "plan" + (i === best ? " best" : "");
+    c.innerHTML = (i === best ? '<span class="tag">Suggested for you</span>' : "") +
+      `<h3>${p.name}</h3><div>${p.cover}</div>` +
+      `<div class="price">${CUR}${yr.toLocaleString("en-IN")}<small> /year</small></div>` +
+      `<small>${CUR}${Math.round(yr / 12).toLocaleString("en-IN")} /month</small><ul>${p.perks.map(x => `<li>${x}</li>`).join("")}</ul>`;
+    g.appendChild(c);
+  });
+  log.appendChild(g);
+  add(`Why ${T.plans[best].name}? Your risk level is ${level.toLowerCase()}, so this balances cover and cost.`, "bot");
+  add("Want to try another cover type?", "bot");
+  chips(["Start over"], start);
+  scroll();
+}
+document.getElementById("f").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = inp.value.trim(); if (!t) return; inp.value = "";
+  if (st.type && FLOW[st.type][st.step]) {
+    const q = FLOW[st.type][st.step];
+    if (q.opts) { // match typed text to an option
+      const m = q.opts.find(o => o.toLowerCase() === t.toLowerCase());
+      if (m) { document.querySelectorAll(".chips").forEach(c => c.remove()); return answer(m); }
+    } else if (/^\d+$/.test(t)) return answer(t);
+  }
+  add(t, "user");
+  const lower = t.toLowerCase();
+  const typeHit = Object.keys(TYPES).find(k => lower.includes(k));
+  if (typeHit && !st.type) { return pickType(TYPES[typeHit].label); }
+  const f = FAQ.find(x => x[0].test(lower));
+  add(f ? f[1] : "I can help with health, life or motor cover. Pick one above or ask about premiums, claims or waiting periods.", "bot");
+});
+start();
+</script>
+</body>
+</html>
